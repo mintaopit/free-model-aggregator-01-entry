@@ -10,13 +10,14 @@
 // server moves.
 //
 // Routing, in one paragraph: candidates are every free model meeting the
-// request, ranked by the quality table's rating, then by how few calls their
-// provider has taken so far (which spreads the load over same-rated
-// providers), then by provider and model id for a deterministic order. A
-// provider that refuses twice in a row is treated as spent — a scheduled
-// failure is a lone refusal, a spent budget or an outage refuses every call
-// after it — and is skipped for the rest of the trial. Every choice is a
-// function of the brief, the requests and the providers' answers so far:
+// request, ranked by the quality table's rating, then by whether their
+// provider refused recently (a provider that just failed is likelier to
+// fail again on its next call), then by how few calls their provider has
+// taken so far (which spreads the load over same-rated providers), then by
+// provider and model id for a deterministic order. A provider that refuses
+// twice in a row is treated as spent — a scheduled failure is a lone
+// refusal, a spent budget or an outage refuses every call after it — and is
+// skipped for the rest of the trial. Every choice is a function of the brief, the requests and the providers' answers so far:
 // no wall clock and no unseeded randomness, so a replay leaves the same
 // state export.
 //
@@ -134,8 +135,11 @@ function servedModels(): { id: string; provider: string; display_name: string }[
 
 /**
  * Every free model meeting `requires`, best first: the quality table's
- * rating, then the provider with the fewest calls so far (load spread over
- * same-rated providers), then provider and model id for a fixed order.
+ * rating, then a provider with no recent refusal (a scheduled failure is a
+ * lone refusal, so a provider that just failed is more likely to fail
+ * again on its next call than one that has not), then the provider with
+ * the fewest calls so far (load spread over same-rated providers), then
+ * provider and model id for a fixed order.
  */
 function candidatesFor(requires: Requirement): Candidate[] {
   const out: Candidate[] = [];
@@ -150,6 +154,9 @@ function candidatesFor(requires: Requirement): Candidate[] {
   }
   out.sort((a, b) => {
     if (b.rating !== a.rating) return b.rating - a.rating;
+    const failedA = stateOf(a.provider.id).consecutiveFailures > 0 ? 1 : 0;
+    const failedB = stateOf(b.provider.id).consecutiveFailures > 0 ? 1 : 0;
+    if (failedA !== failedB) return failedA - failedB;
     const callsA = stateOf(a.provider.id).calls;
     const callsB = stateOf(b.provider.id).calls;
     if (callsA !== callsB) return callsA - callsB;

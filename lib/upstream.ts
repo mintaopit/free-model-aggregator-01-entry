@@ -41,7 +41,13 @@ export interface UpstreamRefused {
 
 export type UpstreamResult = UpstreamOk | UpstreamRefused;
 
-const CALL_TIMEOUT_MS = 15000;
+/**
+ * How long one provider call may take. The providers are loopback in a
+ * trial and a healthy call answers in milliseconds; a long hang here risks
+ * the client's 30 s request timeout when a request fails over across
+ * several providers, so a slow provider is treated as a refusal instead.
+ */
+const CALL_TIMEOUT_MS = 5000;
 
 /** Whether a refusal is a budget/schedule/outage failure worth failing over. */
 export function isFailoverStatus(status: number): boolean {
